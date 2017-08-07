@@ -1,0 +1,16 @@
+icontrol
+icontrol.dialogs
+icontrol.drivers
+icontrol.drivers.instruments
+icontrol.drivers.instruments.agilent
+icontrol.drivers.instruments.arduino
+icontrol.drivers.instruments.cryomagnetics
+icontrol.drivers.instruments.ekspla
+icontrol.drivers.instruments.eurotherm
+icontrol.drivers.instruments.hp
+icontrol.drivers.instruments.keithley
+icontrol.drivers.instruments.lakeshore
+icontrol.drivers.instruments.srs
+icontrol.drivers.instruments.yokogawa
+icontrol.scriptsincolour.parsing
+icontrol.scriptsincolour.ui
