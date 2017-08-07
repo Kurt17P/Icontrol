@@ -1,0 +1,142 @@
+%% Measure CELIV (use CELIV Setup.iC first)
+%% kpp + Linday 140224
+%%
+%% see configuration section below for details on how to connect and setup the instrument
+
+MAKE iC; iC-control; none
+MAKE fg; SRS DS345; GPIB=4
+MAKE osci; Yokogawa DL9000; TMCTL: USBTMC(DL9000) = 27E826755
+MAKE laser; Ekspla NT340; COM8, 19200, 8, 1, none
+MAKE opo; Ekspla PG122; COM7, 38400, 8, 1, none
+
+%%%%%%%%%%%%%%%%%
+%% prepare Python
+
+|import time
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% config Frequency Generator
+
+%% use frontpanel of function generator to set the DC bias
+%% or specify a file with the photovoltage data
+
+// output
+fg setOutputFunction Arbitrary
+fg setOffset 0
+
+// Triggering (for illumination)
+fg setModulationType Burst
+fg setTriggerSource -Slope External
+fg setBurstCount 1.0
+fg enableModulation true
+
+
+%%%%%%%%%%%%%%%%%%%%%%
+%% config oscilloscope
+
+%% CH1 ... voltage of fg; use DC 1MOhm and add 50 through at the fg or use DC50
+%% CH2 ... Current; use DC 50 with Femto transimpedance amp
+%% CH3 ... Trigger out (goes to fg) use 1Mohm
+%% CH4 ... APD photodiode (Trigger on this channel); use DC50
+%% manually set averaging to e.g. 4 or use acquisition mode normal on the scope
+%% set sampling length to e.g. 12.5kW
+
+
+%%%%%%%%%%%%%%%
+%% config Laser
+
+laser getStatus
+opo getStatus
+
+laser OutputPower Off       // switch off electrooptics
+laser getStatus
+opo setWavelength 532
+opo getStatus
+laser setNrPulses 1
+laser getStatus
+laser configTriggerSource 0 // internal Trigger for the Flash lamps
+laser getStatus
+laser Start                 // start Flash lamps
+laser getStatus
+laser firePacket            // it worked without this command for 3 months, now we need to fire a Packet or else the laser is firing permanently, even though it shouldn't ?!?
+laser getStatus
+
+
+
+
+%%%%%%%%%%%%%%%
+%% measurements
+
+// stop & start the scope to reset the display
+osci Stop
+osci Start
+
+// Safety goggles reminder
+iC StopOrGo Put on safety goggles, switching on the Laser...
+
+// start Electrooptics
+laser OutputPower Max
+
+iC StopOrGo The laser should not fire
+|time.sleep(2)  #for laser to come up to power
+
+//|Vslope = [300000]  #for light curve
+|Vslope = range(1000,10001,9000)
+
+//|Tdelay = [1,2,3,4,5, 10,15, 20, 50,100,200,500,1e3,1e4, 1e5, 1e6]   # in us
+//|Tdelay = [1,2,3,4,5, 10,15, 20, 50,100,200,500]   # in us
+|Tdelay = [1,2,3,4,5, 10,15, 20, 50]   # in us
+
+|Tramp = 50		# in us
+
+//|TimeBetweenPulses = 1   # in sec; 0.5 sec appears to be too short
+|TimeBetweenPulses = 2   # in sec; 0.5 sec appears to be too short
+|Averaging = 4   # IMPORTANT: set Averaging on the scope to the same value !!
+
+
+|for V in Vslope:
+|   for T in Tdelay:
+|      
+|      # did the user press the Stop button?
+|      if is_stop_scripting():
+|         break
+|      
+|      # show what will be done
+|      print 'Slope= ' + str(V) + 'V/sec\tTdelay= ' + str(T) + 'us'
+|      
+|      # set TimeBase on the scope
+|      TB = ( T + Tramp ) / 10.0 / 1e6	# maybe one needs to add a bit extra time here
+|      # print 'TB = ' + str(TB)
+|      dispatch_command('osci', 'setTimeBase', TB)
+|      
+|      # program function generator
+|      #dispatch_command('fg', 'setARBtoCELIV', T, V, Tramp, 'TPV_A3_Dev4_1sun_merged.txt')
+|      dispatch_command('fg', 'setARBtoCELIV', T, V, Tramp, '')
+|      
+|      
+|      if not is_syntax_check_mode():
+|      
+|         # wait to allow scope to re-arm and fg to get ready
+|         # required, or else the scope might miss the first trigger
+|         time.sleep(2)
+|         
+|         # fire N Laser Packets
+|         for i in range(1, Averaging+1, 1): #needs to end with N+1
+|            dispatch_command('laser', 'firePacket')
+|            # dispatch_command('iC', 'Wait', TimeBetweenPulses)
+|            time.sleep(TimeBetweenPulses) 
+|
+|            #dispatch_command('iC', 'WaitForUser', 'Adding an additional wait. Please press continue.')
+|      
+|      # save waveforms
+|      dispatch_command('osci', 'SaveWaveform', '1,2,4', '_Td'+str(T) + '_Vslope'+str(V) + '_Tramp'+str(Tramp) + '.txt', True)
+
+
+
+// stop Electrooptics
+laser OutputPower Off
+
+
+// stop Flash Lamps
+laser Stop
